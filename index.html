@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>STARK-OS // Mobile HUD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cyan:#3fd8ff;
+    --cyan-dim:rgba(63,216,255,0.35);
+    --bg-deep:#040a12;
+    --panel-bg:rgba(6,20,32,0.55);
+    --glow:0 0 18px rgba(63,216,255,0.22), inset 0 0 24px rgba(63,216,255,0.04);
+    --good:#5CFFB1;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; width:100%; overflow:hidden;}
+  body{
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(63,216,255,0.08), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(63,216,255,0.03) 0px, rgba(63,216,255,0.03) 1px, transparent 1px, transparent 34px),
+      repeating-linear-gradient(90deg, rgba(63,216,255,0.03) 0px, rgba(63,216,255,0.03) 1px, transparent 1px, transparent 34px),
+      var(--bg-deep);
+    color:#cfeeff;
+    font-family:'Share Tech Mono', monospace;
+    display:flex; flex-direction:column;
+    height:100vh; width:100vw;
+    padding:5vw 5vw 8vh;
+    gap:3vh;
+  }
+  h1,.mono-head{font-family:'Orbitron',sans-serif;}
+
+  .panel{
+    background:var(--panel-bg);
+    border:1px solid var(--cyan-dim);
+    box-shadow:var(--glow);
+    border-radius:8px;
+    padding:3vw 4vw;
+    position:relative;
+  }
+  .panel::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--cyan), transparent); opacity:.6;
+  }
+  .panel-title{
+    font-size:2.6vw; letter-spacing:2px; color:var(--cyan);
+    text-transform:uppercase; margin-bottom:2vw; font-family:'Orbitron',sans-serif;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .dot{width:1.6vw;height:1.6vw;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);}
+
+  /* Time - hero element */
+  .time-panel{text-align:center; background:transparent; border:none; box-shadow:none; padding-top:2vh;}
+  .time-big{font-size:15vw; font-weight:700; color:#fff; text-shadow:0 0 20px var(--cyan); font-family:'Orbitron',sans-serif;}
+  .time-sub{font-size:3.6vw; color:#8fd6ee; margin-top:1vh; letter-spacing:1px;}
+
+  /* Central globe */
+  .stage{flex:1; display:flex; align-items:center; justify-content:center; position:relative; min-height:0;}
+  #globe{width:60vw; height:60vw; max-height:38vh;}
+  .stage-caption{position:absolute; bottom:0; font-size:2.4vw; color:var(--cyan); letter-spacing:3px; opacity:.7;}
+
+  /* Weather + date row */
+  .row2{display:flex; gap:3vw;}
+  .row2 .panel{flex:1;}
+  .weather-temp{font-size:7vw; font-weight:700; color:#fff;}
+  .weather-loc{font-size:2.6vw; color:#8fd6ee; margin-top:1vw;}
+  .weather-cond{font-size:3vw; color:#9fe3f7;}
+
+  .cal-today-num{font-size:7vw; font-weight:700; color:#fff; text-align:center;}
+  .cal-today-label{font-size:2.6vw; color:#8fd6ee; text-align:center; margin-top:1vw;}
+
+  /* System mini */
+  .sys-row{display:flex; justify-content:space-between; font-size:2.8vw; margin:1.2vw 0; color:#bfe9f7;}
+  .bar-bg{background:rgba(255,255,255,0.08); height:1.4vw; border-radius:3px; overflow:hidden; margin-bottom:2vw;}
+  .bar-fill{height:100%; background:linear-gradient(90deg,var(--cyan),var(--good));}
+
+  .note{font-size:2vw; color:#4f7080; margin-top:1vw;}
+</style>
+</head>
+<body>
+
+  <div class="panel time-panel">
+    <div class="time-big" id="clockBig">--:--</div>
+    <div class="time-sub" id="dateSub">--</div>
+  </div>
+
+  <div class="stage">
+    <canvas id="globe"></canvas>
+    <div class="stage-caption">STARK-OS // LIVE UPLINK</div>
+  </div>
+
+  <div class="row2">
+    <div class="panel">
+      <div class="panel-title">Weather <span class="dot"></span></div>
+      <div class="weather-temp" id="wTemp">--°</div>
+      <div class="weather-cond" id="wCond">...</div>
+      <div class="weather-loc" id="wLoc">تحديد الموقع...</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Today <span class="dot"></span></div>
+      <div class="cal-today-num" id="dayNum">--</div>
+      <div class="cal-today-label" id="dayLabel">--</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">System <span class="dot"></span></div>
+    <div class="sys-row"><span>Battery</span><span id="battLevel">--</span></div>
+    <div class="bar-bg"><div class="bar-fill" id="battBar" style="width:0%"></div></div>
+    <div class="sys-row"><span>Network</span><span id="netInfo">--</span></div>
+    <div class="note">بيانات حقيقية من WebAPIs</div>
+  </div>
+
+<script>
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clockBig').textContent = now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('dateSub').textContent = now.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+  document.getElementById('dayNum').textContent = now.getDate();
+  document.getElementById('dayLabel').textContent = now.toLocaleDateString('en-US',{month:'short', year:'numeric'});
+}
+updateClock(); setInterval(updateClock, 1000*10);
+
+if(navigator.getBattery){
+  navigator.getBattery().then(b=>{
+    function upd(){
+      document.getElementById('battLevel').textContent = Math.round(b.level*100)+'%' + (b.charging?' ⚡':'');
+      document.getElementById('battBar').style.width = Math.round(b.level*100)+'%';
+    }
+    upd(); b.addEventListener('levelchange', upd); b.addEventListener('chargingchange', upd);
+  });
+} else { document.getElementById('battLevel').textContent = 'N/A'; }
+
+if(navigator.connection){
+  const c = navigator.connection;
+  document.getElementById('netInfo').textContent = (c.effectiveType||'?') + ' / ' + (c.downlink||'?') + 'Mbps';
+} else { document.getElementById('netInfo').textContent = 'N/A'; }
+
+const wmoMap = {0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',
+  51:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',73:'Snow',75:'Heavy snow',80:'Showers',95:'Storm'};
+function loadWeather(lat, lon, label){
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
+    .then(r=>r.json())
+    .then(data=>{
+      const cw = data.current_weather;
+      document.getElementById('wTemp').textContent = Math.round(cw.temperature) + '°';
+      document.getElementById('wCond').textContent = wmoMap[cw.weathercode] || '';
+      document.getElementById('wLoc').textContent = label;
+    }).catch(()=>{ document.getElementById('wCond').textContent = 'N/A'; });
+}
+function reverseGeocode(lat, lon){
+  fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`)
+    .then(r=>r.json())
+    .then(d=>loadWeather(lat, lon, (d.city||d.locality||'')))
+    .catch(()=>loadWeather(lat, lon, `${lat.toFixed(1)},${lon.toFixed(1)}`));
+}
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(
+    p => reverseGeocode(p.coords.latitude, p.coords.longitude),
+    () => reverseGeocode(33.3152, 44.3661)
+  );
+} else { reverseGeocode(33.3152, 44.3661); }
+
+// Lightweight globe animation
+const gc = document.getElementById('globe');
+const gctx = gc.getContext('2d');
+function sizeGlobe(){ gc.width = gc.clientWidth*2; gc.height = gc.clientHeight*2; }
+sizeGlobe();
+let ga=0;
+function drawGlobe(){
+  const w=gc.width,h=gc.height,cx=w/2,cy=h/2,R=Math.min(w,h)/2-10;
+  gctx.clearRect(0,0,w,h);
+  gctx.strokeStyle='rgba(63,216,255,0.5)'; gctx.lineWidth=2;
+  gctx.beginPath(); gctx.arc(cx,cy,R*0.55,0,Math.PI*2); gctx.stroke();
+  for(let i=1;i<=3;i++){
+    gctx.beginPath();
+    gctx.ellipse(cx,cy,R*0.55,R*0.55*(1-i*0.28)+2,0,0,Math.PI*2);
+    gctx.globalAlpha=0.3; gctx.stroke(); gctx.globalAlpha=1;
+  }
+  for(let i=0;i<2;i++){
+    gctx.save(); gctx.translate(cx,cy); gctx.rotate(ga+i*1.4);
+    gctx.beginPath(); gctx.ellipse(0,0,R*0.95,R*0.28,0,0,Math.PI*2);
+    gctx.strokeStyle='rgba(63,216,255,0.8)'; gctx.stroke(); gctx.restore();
+  }
+  ga+=0.008;
+  requestAnimationFrame(drawGlobe);
+}
+drawGlobe();
+window.addEventListener('resize', sizeGlobe);
+</script>
+</body>
+</html>
